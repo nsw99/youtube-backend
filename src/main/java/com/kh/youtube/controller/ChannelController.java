@@ -1,48 +1,68 @@
 package com.kh.youtube.controller;
 
 import com.kh.youtube.domain.Channel;
+import com.kh.youtube.domain.Member;
+import com.kh.youtube.domain.Subscribe;
+import com.kh.youtube.domain.Video;
 import com.kh.youtube.service.ChannelService;
+import com.kh.youtube.service.SubscribeService;
+import com.kh.youtube.service.VideoService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/*")
+@CrossOrigin(origins={"*"}, maxAge = 6000)
 public class ChannelController {
 
+    @Value("${youtube.upload.path}")
+    private String uploadPath;
+
     @Autowired
-    ChannelService service;
+    private ChannelService channel;
 
-    // SELECT * FROM channel WHERE id(member아이디임) = ?
-    // http://localhost:8080/channel?id=user1
+    @Autowired
+    private VideoService video;
 
-    @GetMapping("/channel")
-    public ResponseEntity<List<Channel>> showAll(){
-        return ResponseEntity.status(HttpStatus.OK).body(service.showAll());
-    }
-
-    @GetMapping("/channel/{id}")
-    public ResponseEntity<Channel> show(@PathVariable int id){
-        return ResponseEntity.status(HttpStatus.OK).body(service.show(id));
-    }
+    @Autowired
+    private SubscribeService subscribe;
 
     @PostMapping("/channel")
-    public ResponseEntity<Channel> create(@RequestBody Channel channel){
-        return ResponseEntity.status(HttpStatus.OK).body(service.create(channel));
-    }
+    public ResponseEntity<Channel> createChannel(@AuthenticationPrincipal String id, MultipartFile photo, String name, String desc) {
+        String originalPhoto = photo.getOriginalFilename();
+        String filePhoto = originalPhoto.substring(originalPhoto.lastIndexOf("\\")+1);
+        String uuid = UUID.randomUUID().toString();
+        String savePhoto = uploadPath + File.separator + uuid + "_" + filePhoto;
+        Path pathPhoto = Paths.get(savePhoto);
 
-    @PutMapping("/channel")
-    public ResponseEntity<Channel> update(@RequestBody Channel channel){
-        return ResponseEntity.status(HttpStatus.OK).body(service.update(channel));
-    }
-    @DeleteMapping("/channel/{id}")
-    public ResponseEntity<Channel> delete(@PathVariable int id){
-        return ResponseEntity.status(HttpStatus.OK).body(service.delete(id));
-    }
+        try {
+            photo.transferTo(pathPhoto);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
+        Channel vo = new Channel();
+        vo.setChannelPhoto(uuid + "_" + filePhoto);
+        vo.setChannelName(name);
+        vo.setChannelDesc(desc);
+        Member member = new Member();
+        member.setId(id);
+        vo.setMember(member);
 
+        return ResponseEntity.status(HttpStatus.OK).body(channel.create(vo));
+    }
 
 }
